@@ -1,6 +1,6 @@
 import streamlit as st
 
-AUTOR = "Escribe aquí tu nombre"
+AUTOR = "Kenin David Suarez Angel"
 
 st.set_page_config(
     page_title="App de Diseño Experimental",
