@@ -16,6 +16,13 @@ from utils.anova_utils import (
     tukey,
     validar_dca,
 )
+from utils.diagnostico_utils import (
+    grafico_qq,
+    grafico_residuos_vs_ajustados,
+    prueba_levene,
+    prueba_shapiro,
+    residuos_y_ajustados,
+)
 
 
 @st.cache_data
@@ -118,8 +125,8 @@ resumen = resumen_tratamientos(datos, col_trat, col_resp)
 cv = coeficiente_variacion(modelo, datos, col_resp)
 p_valor = float(anova.loc[anova["Fuente"] == "Tratamientos", "p-valor"].iloc[0])
 
-pestana_datos, pestana_anova, pestana_comparaciones, pestana_graficos = st.tabs(
-    ["Datos", "ANOVA", "Comparaciones", "Gráficos"]
+pestana_datos, pestana_anova, pestana_comparaciones, pestana_graficos, pestana_supuestos = st.tabs(
+    ["Datos", "ANOVA", "Comparaciones", "Gráficos", "Supuestos"]
 )
 
 with pestana_datos:
@@ -202,3 +209,59 @@ with pestana_graficos:
         labels={col_trat: "Tratamiento", "media": "Media de la respuesta"},
     )
     st.plotly_chart(grafico_medias, width="stretch")
+
+with pestana_supuestos:
+    residuos_ajustados = residuos_y_ajustados(modelo)
+    shapiro_estadistico, shapiro_p, shapiro_conclusion = prueba_shapiro(
+        residuos_ajustados["Residuos"], alfa
+    )
+    levene_estadistico, levene_p, levene_conclusion = prueba_levene(
+        datos, col_trat, col_resp, alfa
+    )
+
+    st.subheader("Gráficas de diagnóstico")
+    st.plotly_chart(
+        grafico_residuos_vs_ajustados(residuos_ajustados),
+        width="stretch",
+    )
+    st.plotly_chart(grafico_qq(residuos_ajustados["Residuos"]), width="stretch")
+
+    st.subheader("Pruebas de supuestos")
+    st.dataframe(
+        pd.DataFrame(
+            [
+                {
+                    "Prueba": "Shapiro-Wilk",
+                    "Estadístico": shapiro_estadistico,
+                    "p-valor": shapiro_p,
+                    "Conclusión": shapiro_conclusion,
+                },
+                {
+                    "Prueba": "Levene (mediana)",
+                    "Estadístico": levene_estadistico,
+                    "p-valor": levene_p,
+                    "Conclusión": levene_conclusion,
+                },
+            ]
+        ).style.format(
+            {"Estadístico": "{:.4f}", "p-valor": "{:.4f}"}
+        ),
+        width="stretch",
+        hide_index=True,
+    )
+
+    st.markdown(
+        """
+**Normalidad:** Shapiro-Wilk evalúa si los residuos son compatibles con una
+distribución normal. El gráfico Q-Q permite comparar sus cuantiles con los
+cuantiles teóricos normales; el gráfico de residuos frente a ajustados también
+ayuda a detectar patrones.
+
+**Homogeneidad de varianzas:** Levene, centrada en la mediana, evalúa si la
+variabilidad de la respuesta es similar entre tratamientos.
+
+**Independencia:** No se determina con estas pruebas. En un DCA se sustenta en
+la asignación aleatoria de tratamientos y en que las unidades experimentales
+sean independientes; debe revisarse cómo se ejecutó el ensayo.
+"""
+    )
